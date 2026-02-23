@@ -1,0 +1,13 @@
+{
+  "id": "evision.k66.network",
+  "name": "EVision K66 Network Driver",
+  "author": "SwankyMango",
+  "version": "1.0.0",
+  "type": "plugin",
+  "devices": [
+    {
+      "path": "device.json"
+    }
+  ],
+  "description": "A SignalRGB add-on providing network control for the EVision K66 keyboard via HTTP and UDP."
+}
