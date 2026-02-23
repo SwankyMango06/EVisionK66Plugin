@@ -1,9 +1,0 @@
-{
-  "id": "evision.k66.device",
-  "name": "EVision K66 (App Controlled)",
-  "version": "1.0.0",
-  "author": "SwankyMango",
-  "type": "Network",
-  "main": "EVisionK66_Device.js",
-  "description": "Network device driver for the EVision K66 keyboard. Communicates with local Python bridge over UDP and HTTP."
-}
