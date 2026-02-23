@@ -1,0 +1,9 @@
+{
+  "id": "evision.k66.network",
+  "name": "EVision K66 (App Controlled)",
+  "version": "1.0.0",
+  "author": "YourName",
+  "description": "EVision K66 network device controlled via the local Python bridge API using UDP discovery and HTTP JSON endpoints.",
+  "type": "Network",
+  "main": "EVisionK66_Device.js"
+}
