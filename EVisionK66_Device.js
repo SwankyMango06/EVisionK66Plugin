@@ -1,99 +1,79 @@
-// EVision K66 Network Device Plugin for SignalRGB (GitHub Add-on compatible)
-// Author: SwankyMango
-// The plugin connects to your Python backend app via UDP + HTTP API.
+export function Name() { return "EVision K66 (App Controlled)"; }
+export function VendorId() { return 0; }
+export function ProductId() { return 0; }
+export function Publisher() { return "SwankyMango"; }
+export function Documentation(){ return "troubleshooting/brand"; }
+export function Size() { return [23, 6]; }  // hint grid
 
-const DEVICE_NAME = "EVision K66 (App Controlled)";
-const UDP_HOST = "127.0.0.1";
+export function ControllableParameters() {
+	return [
+		{"property":"LightingMode","group":"lighting","label":"Lighting Mode","type":"combobox","values":["Canvas"],"default":"Canvas"}
+	];
+}
+
+// ---- Network variables ----
+const HOST = "127.0.0.1";
 const UDP_PORT = 8124;
-const DISCOVERY_MESSAGE = "K66_DISCOVER_V1";
-const EXPECTED_RESPONSE = "K66_HERE_V1";
+const HTTP_PORT_DEFAULT = 8123;
+const DISCOVERY = "K66_DISCOVER_V1";
+const EXPECT = "K66_HERE_V1";
 
-let httpPort = 8123;
+let httpPort = HTTP_PORT_DEFAULT;
 let ledCount = 0;
 let ledPositions = [];
-
-function Initialize() {
-    Print(`${DEVICE_NAME}: Initializing plugin...`);
-    Discover().then((success) => {
-        if (success) {
-            Print(`${DEVICE_NAME}: Discovered backend!`);
-            LoadLayout().then(() => Register()).catch(e => Print(`Layout error: ${e}`));
-        } else {
-            Print(`${DEVICE_NAME}: Discovery failed. Registering placeholder.`);
-            Register();
-        }
-    });
-}
-
-async function Discover() {
-    return new Promise((resolve) => {
-        try {
-            SendUDPMessage(UDP_HOST, UDP_PORT, DISCOVERY_MESSAGE, (response) => {
-                try {
-                    const data = JSON.parse(response);
-                    if (data.type === EXPECTED_RESPONSE) {
-                        httpPort = data.http_port;
-                        ledCount = data.led_count;
-                        Print(`${DEVICE_NAME}: Found backend on port ${httpPort}, LEDs: ${ledCount}`);
-                        resolve(true);
-                        return;
-                    }
-                } catch (e) {
-                    Print(`${DEVICE_NAME}: Invalid discovery data → ${e}`);
-                }
-                resolve(false);
-            });
-        } catch (err) {
-            Print(`${DEVICE_NAME}: Discovery exception → ${err}`);
-            resolve(false);
-        }
-    });
-}
-
-async function httpGET(path) {
-    const resp = await HttpGet(`http://${UDP_HOST}:${httpPort}${path}`);
-    return JSON.parse(resp);
-}
-
-async function httpPOST(path, obj) {
-    await HttpPostJson(`http://${UDP_HOST}:${httpPort}${path}`, obj);
-}
-
-async function LoadLayout() {
-    const layout = await httpGET("/layout");
-    if (!layout.cells) throw "Invalid layout response";
-    ledPositions = layout.cells.filter(c => c.led != null).map(c => ({
-        index: c.led,
-        x: c.x,
-        y: c.y
-    }));
-    ledCount = layout.cells.length;
-    Print(`${DEVICE_NAME}: Layout loaded (${ledPositions.length} mapped LEDs)`);
-}
-
-function Register() {
-    const leds = ledPositions.length
-        ? ledPositions.map(p => ({ Name: `LED ${p.index}`, X: p.x, Y: p.y }))
-        : [{ Name: "LED 0", X: 0, Y: 0 }];
-    const dev = {
-        Name: DEVICE_NAME,
-        Type: "RGB",
-        LedCount: leds.length,
-        Leds: leds,
-        Initialize: () => true,
-        Render: Render
-    };
-    RegisterDevice(dev);
-    Print(`${DEVICE_NAME}: Registered with ${leds.length} LEDs`);
-}
-
 let lastFrame = [];
-function Render() {
-    if (!Device || !Device.Leds) return;
-    const frame = Device.Leds.map((led, i) => [i, led.Color.R, led.Color.G, led.Color.B]);
-    if (JSON.stringify(frame) === JSON.stringify(lastFrame)) return;
-    lastFrame = frame;
-    httpPOST("/set_frame", { data: frame }).catch(e => Print(`${DEVICE_NAME}: Frame error → ${e}`));
+
+// ---- Initialization ----
+export function Initialize() {
+	Log("EVision: starting discovery...");
+	SendUDPMessage(HOST, UDP_PORT, DISCOVERY, (resp) => {
+		try {
+			const json = JSON.parse(resp);
+			if (json.type === EXPECT) {
+				httpPort = json.http_port;
+				ledCount = json.led_count;
+				Log(`EVision: discovered, ${ledCount} LEDs`);
+				LoadLayout();
+			}
+		} catch(e){ Log("EVision: discovery parse failed " + e); }
+	});
 }
 
-Print(`${DEVICE_NAME} loaded`);
+async function LoadLayout(){
+	try{
+		const res = await HttpGet(`http://${HOST}:${httpPort}/layout`);
+		const data = JSON.parse(res);
+		if(data.cells){
+			ledPositions = data.cells.filter(c=>c.led!=null).map(c=>[c.x,c.y]);
+			Log(`EVision: layout loaded (${ledPositions.length})`);
+		}
+	}catch(e){ Log("EVision: /layout error "+e); }
+}
+
+export function LedNames(){ 
+	return ledPositions.map((_,i)=>"LED "+i);
+}
+
+export function LedPositions(){
+	return ledPositions;
+}
+
+// ---- Render loop ----
+export function Render() {
+	let leds = GetLeds(); // provided automatically by SignalRGB
+	if(!leds) return;
+
+	let frame = leds.map((c,i)=>[i,c[0],c[1],c[2]]);
+	if(JSON.stringify(frame)===JSON.stringify(lastFrame)) return;
+	lastFrame = frame;
+
+	HttpPostJson(`http://${HOST}:${httpPort}/set_frame`, {data:frame})
+		.catch(e=>Log("EVision: POST error "+e));
+}
+
+export function Shutdown(){ Log("EVision: shutting down"); }
+
+export function Validate(endpoint){ return true; }
+export function ImageUrl(){ return ""; }
+
+function Log(m){ Print("EVision: "+m); }
